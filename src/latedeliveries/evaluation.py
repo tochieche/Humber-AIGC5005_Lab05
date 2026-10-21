@@ -13,3 +13,20 @@ from latedeliveries.pipeline import SEED, build_pipeline, training_folds
 VOUCHER_COST = 4
 MISSED_LATE_COST = 15
 BREAK_EVEN_THRESHOLD = VOUCHER_COST / MISSED_LATE_COST
+
+
+def candidates():
+    """Compare a dummy and four real learners, including a balanced one."""
+    return {
+        "Flag-nobody baseline": DummyClassifier(strategy="prior"),
+        "Logistic regression": LogisticRegression(max_iter=2000, random_state=SEED),
+        "Balanced logistic": LogisticRegression(
+            class_weight="balanced", max_iter=2000, random_state=SEED
+        ),
+        "Decision tree": DecisionTreeClassifier(
+            max_depth=5, min_samples_leaf=15, random_state=SEED
+        ),
+        "Random forest": RandomForestClassifier(
+            n_estimators=80, min_samples_leaf=5, random_state=SEED, n_jobs=1
+        ),
+    }
