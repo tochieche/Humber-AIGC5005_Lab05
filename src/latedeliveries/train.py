@@ -5,20 +5,7 @@ from sklearn.model_selection import GridSearchCV
 from latedeliveries.evaluation import candidates
 from latedeliveries.pipeline import build_pipeline, training_folds
 
-from sklearn.model_selection import cross_val_predict
-from latedeliveries.evaluation import choose_threshold, cost_by_threshold
-from latedeliveries.data import make_orders
-from latedeliveries.evaluation import (choose_model,compare_models,decision_cost)
-from latedeliveries.pipeline import (
-        CATEGORICAL_FEATURES,
-        EXCLUDED_FEATURES,
-        FEATURE_COLUMNS,
-        NUMERIC_FEATURES,
-        SEED,
-        split_orders,
-    )
-    
-    
+
 def make_grid_search(model_name):
     """Try at least 6 recipes with 2 settings for the chosen learner."""
     if model_name in ("Logistic regression", "Balanced logistic"):
@@ -49,12 +36,58 @@ def make_grid_search(model_name):
     )
 
 
+def choose_training_threshold(best_pipeline, train_x, train_y):
+    """Ask each held-out TRAINING fold for a chance, never touch test."""
+    from sklearn.model_selection import cross_val_predict
+
+    from latedeliveries.evaluation import choose_threshold, cost_by_threshold
+
+    oof_probabilities = cross_val_predict(
+        best_pipeline,
+        train_x,
+        train_y,
+        cv=training_folds(),
+        method="predict_proba",
+        n_jobs=1,
+    )[:, 1]
+    cutoff = choose_threshold(train_y, oof_probabilities)
+    return cutoff, cost_by_threshold(train_y, oof_probabilities)
+
+
 def run_training():
     """Rebuild model, graphs' data, and reports from only the teacher's data."""
     import json
     from pathlib import Path
 
+    import joblib
+    import numpy as np
+    import sklearn
+    from sklearn.base import clone
+    from sklearn.metrics import (
+        accuracy_score,
+        confusion_matrix,
+        f1_score,
+        precision_score,
+        recall_score,
+        roc_auc_score,
+    )
 
+    from latedeliveries.data import make_orders
+    from latedeliveries.evaluation import (
+        choose_model,
+        compare_models,
+        decision_cost,
+    )
+    from latedeliveries.pipeline import (
+        CATEGORICAL_FEATURES,
+        EXCLUDED_FEATURES,
+        FEATURE_COLUMNS,
+        NUMERIC_FEATURES,
+        SEED,
+        split_orders,
+    )
+
+    # This is the root of the REPOSITORY, not the current command's location.
     root = Path(__file__).resolve().parents[2]
     model_dir = root / "models"
     report_dir = root / "reports"
@@ -64,13 +97,13 @@ def run_training():
     orders = make_orders(seed=SEED)
     train_x, test_x, train_y, test_y = split_orders(orders)
 
-    # All comparison/tuning/threshold choices use training ONLY.
+    # Stages 2-4: all comparison/tuning/threshold choices use training ONLY.
     cv_table = compare_models(train_x, train_y)
     chosen_name = choose_model(cv_table)
     search = make_grid_search(chosen_name)
     search.fit(train_x, train_y)
 
-    # Using the same five folds and are for interpretation, NOT test tuning.
+    # These use the same five folds and are for interpretation, NOT test tuning.
     original_auc = cv_table.loc[
         cv_table["model"] == chosen_name, "roc_auc_mean"
     ].iloc[0]
@@ -81,12 +114,12 @@ def run_training():
     gain = tuned_auc - float(original_auc)
     gain_is_bigger_than_fold_spread = gain > float(original_spread)
 
-    # Get held-out TRAINING-fold chances for the voucher threshold.
+    # Stage 4: get held-out TRAINING-fold chances for the voucher threshold.
     threshold, threshold_table = choose_training_threshold(
         search.best_estimator_, train_x, train_y
     )
 
-    # Score our final 750 held-out rows.
+    # Stage 5: ONLY HERE do we score our final 750 held-out rows.
     final_pipeline = clone(search.best_estimator_)
     final_pipeline.fit(train_x, train_y)
     test_probabilities = final_pipeline.predict_proba(test_x)[:, 1]
@@ -131,7 +164,7 @@ def run_training():
         "threshold_training_cost": int(threshold_table["training_cost"].min()),
     }
 
-    # Save the WHOLE fitted pipeline and the evidence.
+    # Stage 6: save the WHOLE fitted pipeline and the evidence.
     cv_table.to_csv(report_dir / "cv_results.csv", index=False, float_format="%.6f")
     threshold_table.to_csv(report_dir / "threshold_costs.csv", index=False)
     (report_dir / "metrics.json").write_text(
