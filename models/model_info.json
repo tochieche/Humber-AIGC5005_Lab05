@@ -1,0 +1,79 @@
+{
+  "package": "latedeliveries",
+  "data_generator": "teacher's unedited make_orders(n=3000, seed=7)",
+  "scikit_learn_version": "1.9.1",
+  "seed": 7,
+  "threshold": 0.25,
+  "numeric_features": [
+    "distance_km",
+    "items",
+    "hour"
+  ],
+  "categorical_features": [
+    "weather",
+    "day_type"
+  ],
+  "feature_columns": [
+    "distance_km",
+    "items",
+    "hour",
+    "weather",
+    "day_type"
+  ],
+  "excluded_columns": [
+    "order_id",
+    "vehicle",
+    "prep_minutes",
+    "courier_months",
+    "customer_rating"
+  ],
+  "target": "late",
+  "model_name": "Logistic regression",
+  "best_params": {
+    "model__C": 0.1,
+    "model__class_weight": null
+  },
+  "test_results": {
+    "train_orders": 2250,
+    "test_orders": 750,
+    "train_late_rate": 0.156,
+    "test_late_rate": 0.156,
+    "selected_model": "Logistic regression",
+    "threshold": 0.25,
+    "confusion_matrix": [
+      [
+        570,
+        63
+      ],
+      [
+        70,
+        47
+      ]
+    ],
+    "true_negative": 570,
+    "false_positive": 63,
+    "false_negative": 70,
+    "true_positive": 47,
+    "accuracy": 0.8226666666666667,
+    "precision": 0.42727272727272725,
+    "recall": 0.4017094017094017,
+    "f1": 0.41409691629955947,
+    "roc_auc": 0.7522380200105319,
+    "cost_flag_nobody": 1755,
+    "cost_flag_everybody": 3000,
+    "cost_model": 1490,
+    "money_saved_vs_nobody": 265,
+    "money_saved_vs_everybody": 1510,
+    "chosen_params": {
+      "model__C": 0.1,
+      "model__class_weight": null
+    },
+    "grid_scoring": "roc_auc",
+    "grid_roc_auc_mean": 0.7728622581203092,
+    "untuned_cv_roc_auc_mean": 0.7727817961791021,
+    "untuned_cv_roc_auc_std": 0.03524402598829204,
+    "apparent_tuning_roc_auc_gain": 8.046194120703287e-05,
+    "tuning_gain_beats_untuned_fold_spread": false,
+    "threshold_training_cost": 4196
+  }
+}
