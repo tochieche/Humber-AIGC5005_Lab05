@@ -3,11 +3,18 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "lab3package"
+name = "latedeliveries"
 version = "0.2.0"
-description = "Humber AIGC5005 Lab 04 weather reporting package"
+description = "Humber AIGC5005 Lab 05"
+readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["requests==2.32.3"]
+dependencies = [
+  "numpy==2.3.5",
+  "pandas==2.2.3",
+  "scikit-learn==1.8.0",
+  "joblib==1.5.3",
+  "matplotlib==3.10.8",
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -34,6 +41,7 @@ show_error_codes = true
 [tool.ruff]
 target-version = "py311"
 line-length = 88
+extend-exclude = ["notebooks/analysis.ipynb"]
 
 
 [tool.ruff.lint]

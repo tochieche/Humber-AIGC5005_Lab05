@@ -104,9 +104,9 @@ def run_training():
     search.fit(train_x, train_y)
 
     # These use the same five folds and are for interpretation, NOT test tuning.
-    original_auc = cv_table.loc[
-        cv_table["model"] == chosen_name, "roc_auc_mean"
-    ].iloc[0]
+    original_auc = cv_table.loc[cv_table["model"] == chosen_name, "roc_auc_mean"].iloc[
+        0
+    ]
     original_spread = cv_table.loc[
         cv_table["model"] == chosen_name, "roc_auc_std"
     ].iloc[0]
@@ -158,9 +158,7 @@ def run_training():
         "untuned_cv_roc_auc_mean": float(original_auc),
         "untuned_cv_roc_auc_std": float(original_spread),
         "apparent_tuning_roc_auc_gain": float(gain),
-        "tuning_gain_beats_untuned_fold_spread": bool(
-            gain_is_bigger_than_fold_spread
-        ),
+        "tuning_gain_beats_untuned_fold_spread": bool(gain_is_bigger_than_fold_spread),
         "threshold_training_cost": int(threshold_table["training_cost"].min()),
     }
 
