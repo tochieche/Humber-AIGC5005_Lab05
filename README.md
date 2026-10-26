@@ -1,242 +1,261 @@
 
-# Weather App Builder
-This program downloads a week of hourly temperature and rain data for Toronto from an open API and summarizes it into daily stats and weather patterns. It's useful because looking through hundreds of raw weather numbers is annoying, so this automatically breaks down the highs, lows, averages, and rainfall for you.
+#  Predict Late Deliveries
+A food delivery company wants to know, at the moment an order is placed, whether it will arrive late, so that 
+it can offer a small voucher before the customer is disappointed. 
 
-## Data source
-The data comes from the [Open-Meteo Weather API](https://api.open-meteo.com/v1/forecast?latitude=43.65&longitude=-79.38&hourly=temperature_2m,precipitation&past_days=7&forecast_days=0&timezone=America/Toronto). One record represents one hour of weather data (containing a timestamp, temperature in °C, and precipitation in mm), and the API returns around 168 records for a full 7-day period.
+## What am I trying to save?
 
-## Setup
-python -m venv .venv
-source .venv/bin/activate
+A $4 voucher is sent to every order we flag, even when that order
+arrives on time. If we miss a late order, the loss is $15.
 
+Cost = $4 × number flagged + $15 × number late but NOT flagged.
+
+Flagging nobody is the simple starting policy. My goal is to beat that
+policy with data the model has never seen.
+
+## 1. Set it up
 conda env create -f environment.yml
-conda activate lab3package
-pip install -r requirements.txt
-pip install -e .
-
-## Run
-python main.py
-
-
-## Test
-python -m unittest discover -s tests -v
-python -m pip check
-
-## Example output
-The retrieved output sample json is as follows:
-{
-  "source_url": "[https://api.open-meteo.com/v1/forecast]",
-  "records_processed": 168,
-  "hottest_day": "2026-09-21",
-  "hottest_day_max_temp_c": 22.4,
-  "daily_breakdown": {
-    "2026-09-21": {
-      "min_temp_c": 13.0,
-      "max_temp_c": 22.4,
-      "avg_temp_c": 17.8,
-      "total_precip_mm": 1.2,
-      "readings": 24
-    }
-  }
-}
-
-
-
-## Layout
-src/lab3package/config.py: Centralized URL, timeout, and output path configuration.
-
-src/lab3package/models.py: HourlyRecord class encapsulating data validation and cleaning.
-
-src/lab3package/sources.py: WeatherDataSource class for API retrieval; only module using requests.
-
-src/lab3package/aggregations.py: Base class and subclasses implementing polymorphism for statistics.
-
-src/lab3package/report.py: ReportBuilder class for compiling results and writing JSON output.
-
-src/lab3package/__init__.py: Re-exports public API names.
-
-main.py: Thin execution entry point and clean error message handler.
-
-
-
-
-
-## Layout
-What moved
-===> From Lab 02: SOURCE_URL & OUTPUT
-===> To Lab 03: src/lab3package/config.py
-
-===> From Lab 02: HourlyRecord namedtuple
-===> To Lab 03: src/lab3package/models.py (HourlyRecord class)
-
-===> From Lab 02: fetch_records()
-===> To Lab 03: src/lab3package/sources.py (WeatherDataSource.fetch())
-
-
-===> From Lab 02: aggregate_by_date(), classify_weather_conditions(), recent_readings()
-===> To Lab 03: src/lab3package/aggregations.py (subclasses of Aggregation)
-
-===> From Lab 02: build_summary() & write_summary()
-===> To Lab 03: src/lab3package/report.py 
-
-
-
-
-## Data quirks
-The API doesn't return a list of neat JSON dictionaries; instead, it gives separate arrays for timestamps, temperatures, and precipitation. My code combines them into a single record.
-
-Sometimes the API can have missing or null values or values that aren't numbers. My program checks for this and uses a try/except block to skip any corrupted readings instead of crashing or accidentally treating missing data as 0°C.
-
-
-## Design choices
-
-   ### Why I used object-oriented programming
-
-   I organized the weather application into separate classes so that each class has one clear responsibility. This makes the program easier to understand, test, maintain, and extend.
-
-   HourlyRecord represents and validates one hourly weather observation.
-
-   WeatherDataSource retrieves weather information from the API.
-
-   Aggregation provides a common interface for weather calculations.
-
-   ReportBuilder combines the calculated results and exports them to JSON.
-
-   This approach follows the Single Responsibility Principle because each class focuses on a specific part of the application's functionality.
-
-
-   ### Why I used inheritance
-
-   I created an abstract base class named Aggregation because the weather application performs several different calculations on the same collection of hourly records.
-
-   The subclasses DailyTemperatureAggregation, ConditionCountAggregation, and RecentReadingsAggregation inherit from Aggregation.
-
-   Each subclass implements the shared compute() method differently.
-
-   Inheritance establishes a consistent interface for all aggregation operations, avoids duplicating their execution logic, and makes adding new aggregation types easier.
-
-
-   ### Why I used polymorphism
-
-   Polymorphism allows different aggregation objects to be treated through the same Aggregation interface.
-
-   In the refactored ReportBuilder, aggregation objects are stored in a list and executed through a common loop:
-
-   for aggregation in self.aggregations:
-       results[type(aggregation).__name__] = (
-           aggregation.compute(self.records)
-       )
-
-   Python automatically executes the appropriate subclass implementation of compute().
-
-   This design reduces repetitive method calls and allows aggregation strategies to be managed consistently.
-
-
-   ### Why HourlyRecord validates and cleans its own values
-
-   I designed HourlyRecord to validate its inputs during initialization because weather data obtained from external APIs may contain missing or incorrectly formatted values.
-
-   The constructor checks that required values are present and converts temperature and precipitation values into floating-point numbers.
-
-   If a required value is missing or cannot be converted, the class raises a ValueError.
-
-   Keeping validation inside HourlyRecord ensures that every successfully constructed record follows the same basic data requirements.
-
-   It also prevents the aggregation classes from repeatedly performing the same input validation.
-
-   Invalid observations are skipped by the data-source processing logic instead of being included in weather calculations.
-
-   This design improves data consistency and separates data validation from statistical processing.
-
-
-   ### Why I used defaultdict and Counter
-
-   I used defaultdict in DailyTemperatureAggregation to group hourly observations by date without manually creating a list for each new date.
-
-   I used Counter in ConditionCountAggregation to calculate the number of observations in each weather category.
-
-   These built-in Python tools reduce unnecessary code and make the aggregation logic easier to read.
-
-
-   ### Why I separated API communication from report generation
-
-   I placed HTTP communication inside WeatherDataSource so that the rest of the application does not need to manage API requests directly.
-
-   This separates external data retrieval from business logic and reporting.
-
-   ReportBuilder works with validated weather records instead of HTTP responses. As a result, the reporting functionality can be tested independently using sample records without contacting the weather API.
-
-
-
-
-## Known limitations
-
-   ### Fixed geographical location
-   The application currently retrieves weather data for Toronto, Ontario, using coordinates configured in the source URL.
-
-   Users cannot select a different city or geographical location through the command line.
-
-   A future improvement would allow users to provide custom coordinates or choose from predefined cities.
-
-
-   ### Fixed weather-data period
-
-   The API request is configured to retrieve approximately seven days of hourly observations.
-
-   The application does not currently allow users to select arbitrary start and end dates.
-
-   Future versions could accept a configurable date range.
-
-
-   ### Dependence on an external weather API
-
-   The application depends on the availability and responsiveness of the Open-Meteo API.
-
-   Network outages, connection timeouts, API errors, or unexpected responses may prevent the application from generating a report.
-
-   A future improvement would introduce retry logic with exponential backoff and optional local caching.
-
-
-
-
-   ### Missing or malformed observations
-
-   The application checks for missing or malformed weather values and skips records that cannot be converted into valid HourlyRecord objects.
-
-   Although this prevents invalid observations from entering the calculations, skipping records may produce incomplete daily statistics.
-
-   The application does not currently perform missing-value imputation or report detailed data-quality metrics.
-
-   ### Fixed weather classification thresholds
-
-   Weather categories use fixed temperature and precipitation thresholds.
-
-   For example, dry observations below 0°C are classified as Freezing Dry, while dry observations below 15°C are classified as Cool Dry.
-
-   These thresholds may not be appropriate for every geographical location, climate, or season.
-
-   A future improvement would make the thresholds configurable.
-
-
-   ### Limited output formats
-
-   The application currently exports its summary as a JSON file.
-
-   It does not provide CSV exports, an interactive dashboard, or graphical visualizations.
-
-   Future improvements could include CSV output, Matplotlib charts, or a simple web-based dashboard.
-
-   ### Basic handling of incomplete datasets
-
-   The application requires valid weather observations to generate a meaningful report.
-
-   If no valid daily observations are available, report generation cannot determine the hottest day.
-
-   A future improvement would provide more detailed diagnostics explaining which observations were rejected and why.
-
-   ### No persistent historical database
-   The application retrieves weather observations and creates a summary report, but it does not maintain a historical database of previously downloaded information.
-
-   Each execution processes the weather data retrieved for that run.
-
-   A future version could store historical observations in SQLite or PostgreSQL for long-term comparison and analysis.
+conda activate module05-quality
+python -m pip install -e .
+
+python -m pip install -r requirements.txt
+python -m pip install -e .
+
+
+## 2. Run everything
+python -m latedeliveries.train
+python -m pytest
+python -m ruff format --check .
+python -m ruff check .
+
+The train command starts again from the same provided generator,
+compares models, searches settings, picks the voucher cutoff, then scores
+the saved test set just once per run. The final outputs are in
+`models/` and `reports/` (and they are kept in Git).
+
+`ruff` uses rules E, F, I, B, UP in `pyproject.toml`. The generated
+notebook is excluded from Ruff checks; package and test source are not.
+
+## 3. The data and the rules
+
+I added the `data.py` with its exact data-making logic in
+its own commit. It has the supplied `make_orders(n=3000, seed=7)` function,
+creates the same 3,000 rows, and sometimes leaves preparation time and
+ratings empty.
+
+### Which columns am I allowed to use?
+
+Here is every data column:
+
+| Column | Use? | My easy explanation |
+| --- | --- | --- |
+| `order_id` | No | Just a label, not a reason for delay. |
+| `distance_km` | Yes | We know the restaurant and customer's location. |
+| `items` | Yes | The basket's item count is already known. |
+| `hour` | Yes | We know the hour when the customer checks out. |
+| `weather` | Yes | We can check the weather right now. |
+| `day_type` | Yes | We know if today is a weekday or weekend. |
+| `vehicle` | No | A courier may not be picked at order time. |
+| `prep_minutes` | No | Real kitchen preparation time comes later. |
+| `courier_months` | No | We may not know which courier will deliver. |
+| `customer_rating` | No | The customer gives a rating after delivery. |
+| `late` | Target | This is what we are trying to guess. |
+
+The five input columns are in `pipeline.py` only once:
+
+- Numbers: `distance_km`, `items`, `hour`
+- Categories: `weather`, `day_type`
+
+I split with a single fixed seed, 7, and use a stratified 75/25
+split: 2,250 training orders and 750 hidden test orders. Both have a
+late rate of 15.6%. Stratified just means the two sets have about the
+same amount of late orders.
+
+## 4. The safe pipeline
+
+My `build_pipeline(model)` is like an assembly line:
+
+1. Fill missing number values using the training median.
+2. Scale the numbers so they are easier to compare.
+3. Turn words like `rain` into one-hot columns; ignore a new word like `hail`.
+4. Let the chosen model predict a chance of late delivery.
+
+Every candidate, search and final prediction uses that whole pipeline.
+Preprocessing happens inside each training fold. This is important:
+information from one fold cannot leak into the other fold. The pipeline
+can also predict when `prep_minutes` is missing because it never uses
+that future-only column in the first place.
+
+## 5. Try models fairly (training data only)
+
+I used the same five stratified folds for one DummyClassifier baseline
+and four real models. Balanced logistic uses
+`class_weight="balanced"`. The baseline is useful for comparison but cannot
+be selected as the real model.
+
+For each metric, the number before ± is the five-fold mean and
+the number after it is the standard deviation (how much the folds differ).
+The cost column uses the simple break-even threshold of $4 / $15 ≈ 0.267.
+
+| Model | Accuracy | Precision | Recall | F1 | ROC-AUC | Cost / order |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Logistic regression | 0.858 ± 0.006 | 0.644 ± 0.067 | 0.199 ± 0.019 | 0.304 ± 0.029 | 0.773 ± 0.035 | 1.891 ± 0.137 |
+| Random forest | 0.857 ± 0.012 | 0.643 ± 0.131 | 0.191 ± 0.040 | 0.294 ± 0.062 | 0.754 ± 0.032 | 1.931 ± 0.130 |
+| Decision tree | 0.855 ± 0.006 | 0.614 ± 0.067 | 0.193 ± 0.056 | 0.289 ± 0.066 | 0.741 ± 0.041 | 1.940 ± 0.139 |
+| Flag-nobody baseline | 0.844 ± 0.001 | 0.000 ± 0.000 | 0.000 ± 0.000 | 0.000 ± 0.000 | 0.500 ± 0.000 | 2.340 ± 0.013 |
+| Balanced logistic | 0.732 ± 0.018 | 0.325 ± 0.026 | 0.661 ± 0.044 | 0.436 ± 0.033 | 0.772 ± 0.035 | 3.029 ± 0.075 |
+
+The full-precision numbers are saved in `reports/cv_results.csv`.
+
+I chose logistic regression because its predicted voucher cost was
+about $1.891 per training validation order, the smallest of the real
+models. The dummy cost about $2.340 per order. Balanced logistic has
+high recall, but it flags too many orders and spends more voucher money.
+This is why I did not just choose the model with the best accuracy,
+recall or ROC-AUC.
+
+## 6. Tune just that model (still training only)
+I used `GridSearchCV` on the full pipeline with five stratified folds.
+It tries two settings and six combinations:
+
+- `model__C`: `0.1`, `1.0`, `10.0`
+- `model__class_weight`: `None`, `balanced`
+
+I used ROC-AUC to find good order rankings instead of chasing easy
+accuracy on the uncommon late class. Best settings:
+`model__C = 0.1`, `model__class_weight = None`.
+
+The best searched training ROC-AUC was 0.772862, versus 0.772782
+for the untuned model, a tiny gain of 0.000080. The original
+fold-to-fold standard deviation was 0.035244, much larger than that
+gain. So NO, the gain was not bigger than the usual fold spread.
+This comparison is just a guide, not proof that tuning really helped.
+
+## 7. Pick the voucher threshold without peeking
+Using `cross_val_predict`, I got each training row's chance from a model
+that did not learn from that row (out-of-fold prediction). I tried
+all 19 thresholds: 0.05 to 0.95, moving 0.05 each time, and used the
+real QuickBite cost formula. If two thresholds tie, the smaller one wins.
+
+My chosen threshold is 0.25. This means flag an order when its
+predicted late chance is 25% or higher. The lowest training OOF cost
+was $4,196 for the 2,250 training orders.
+The chart and all 19 choices are saved in `reports/threshold_costs.csv`
+and shown in the notebook. The test set did not choose this threshold.
+
+To test the math by hand: if actual late flags are `[1, 0, 1, 0]`, the
+predicted chances are `[.90, .55, .30, .10]`, and cutoff is `.15`,
+we flag three orders and miss none: 3 × $4 = $12. Flagging nobody
+would cost $30, and flagging everyone would cost $16.
+
+## 8. The ONE held-out test result
+
+Only after all model/parameter/threshold choices did I fit the final
+pipeline to all 2,250 training orders and predict on 750 unseen test
+orders. There were 117 actual late orders in the test set.
+
+Here is the confusion matrix (rows = what really happened;
+columns = what the model predicted):
+| Actual / Predicted | On time | Late |
+| --- | ---: | ---: |
+| On time | 570 (true negative) | 63 (false positive) |
+| Late | 70 (false negative) | 47 (true positive) |
+
+The test numbers at threshold 0.25 are:
+| Metric | Value |
+| --- | ---: |
+| Accuracy | 0.823 |
+| Precision | 0.427 |
+| Recall | 0.402 |
+| F1 | 0.414 |
+| ROC-AUC (continuous chances) | 0.752 |
+
+### What would QuickBite pay for those 750 orders?
+| Policy | Test cost |
+| --- | ---: |
+| Flag nobody | $1,755 |
+| Flag everybody | $3,000 |
+| Our chosen model | $1,490 |
+
+So the model saved $265, or about
+15.1%, compared with flagging nobody.
+It is not perfect: 70 late orders were still missed. The experiment
+is on invented orders, not a real customer trial.
+
+The complete results are saved in `reports/metrics.json`.
+
+## 9. Keep the trained model safe and reusable
+`models/late_orders.joblib` contains the whole trained pipeline:
+cleaning, one-hot columns and the classifier. A second program can load
+it without repeating any feature processing:
+
+```python
+import joblib
+import pandas as pd
+
+model = joblib.load("models/late_orders.joblib")
+new_order = pd.DataFrame([{
+    "distance_km": 4.2,
+    "items": 2,
+    "hour": 18,
+    "weather": "rain",
+    "day_type": "weekday",
+}])
+chance = model.predict_proba(new_order)[0, 1]
+print("Chance of lateness:", round(chance, 3))
+print("Send voucher?", chance >= 0.25)
+```
+
+Only load a `.joblib` file you trust. It can run Python code during
+loading, just like other pickle-based files. The matching
+`models/model_info.json` contains the scikit-learn version, seed,
+threshold, chosen settings, allowed/excluded columns and test results.
+
+## 10. My notebook and tests
+Open `notebooks/analysis.ipynb`. It is saved with outputs and shows:
+training late rate, the full CV comparison, cost by training threshold,
+the saved test confusion matrix and all three test costs. It ends
+with a recommendation under 200 words. It only reads saved test
+results instead of using those rows to make more choices.
+
+The `tests/` folder has 28 passing pytest cases. They check the split,
+feature exclusions, missing values, unknown categories, probabilities,
+a pencil-and-paper voucher example, threshold ties, six search choices,
+saved-file consistency and reloading a joblib model via `tmp_path`.
+At least one test uses `@pytest.mark.parametrize`.
+
+## 11. Folder layout
+Humber-AIGC5005_Lab05/
+├── .git/                     
+├── .gitignore
+├── README.md
+├── environment.yml
+├── requirements.txt
+├── pyproject.toml
+├── src/latedeliveries/
+│   ├── __init__.py
+│   ├── data.py               
+│   ├── pipeline.py
+│   ├── evaluation.py
+│   └── train.py
+├── tests/
+│   ├── conftest.py
+│   ├── test_pipeline.py
+│   ├── test_evaluation.py
+│   ├── test_tuning.py
+│   ├── test_data.py
+│   ├── test_saved_model.py
+│   └── test_artifacts.py
+├── notebooks/analysis.ipynb
+├── models/late_orders.joblib
+├── models/model_info.json
+├── reports/cv_results.csv
+├── reports/threshold_costs.csv
+└── reports/metrics.json
+
+
+## Would I use it?
+Maybe, in a small pilot first. It saved money on the hidden test set,
+but fake data can be different from real deliveries. I would collect
+real-world orders, check what is truly known at checkout, and check that
+voucher spending still goes down before giving it to actual customers.
